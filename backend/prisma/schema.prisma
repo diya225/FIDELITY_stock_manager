@@ -1,0 +1,217 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  fullName     String    @map("full_name")
+  role         Role      @default(USER)
+  isActive     Boolean   @default(true) @map("is_active")
+  failedLogins Int       @default(0) @map("failed_logins")
+  lockedUntil  DateTime? @map("locked_until")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  profile         Profile?
+  portfolio       Portfolio?
+  recommendations Recommendation[]
+  refreshTokens   RefreshToken[]
+  watchlists      Watchlist[]
+  predictionLogs  PredictionLog[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique @map("token_hash")
+  userId    String   @map("user_id")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+model Profile {
+  id                String         @id @default(cuid())
+  userId            String         @unique @map("user_id")
+  monthlyIncome     Decimal        @map("monthly_income") @db.Decimal(14, 2)
+  monthlyExpenses   Decimal        @map("monthly_expenses") @db.Decimal(14, 2)
+  currentSavings    Decimal        @map("current_savings") @db.Decimal(14, 2)
+  investmentGoal    InvestmentGoal @map("investment_goal")
+  riskAppetite      RiskAppetite   @map("risk_appetite")
+  horizonMonths     Int            @map("horizon_months")
+  investableAmount  Decimal        @map("investable_amount") @db.Decimal(14, 2)
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
+  user              User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("profiles")
+}
+
+model Portfolio {
+  id             String        @id @default(cuid())
+  userId         String        @unique @map("user_id")
+  virtualBalance Decimal       @map("virtual_balance") @db.Decimal(14, 2)
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  holdings       Holding[]
+  transactions   Transaction[]
+  predictionLogs PredictionLog[]
+
+  @@map("portfolios")
+}
+
+model Stock {
+  id          String    @id @default(cuid())
+  ticker      String    @unique
+  name        String
+  sector      String
+  exchange    String
+  currentPrice Decimal  @default(0) @map("current_price") @db.Decimal(14, 2)
+  changePct   Decimal   @default(0) @map("change_pct") @db.Decimal(8, 2)
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  prices      StockPrice[]
+  holdings    Holding[]
+  transactions Transaction[]
+  recommendations Recommendation[]
+  watchlists  WatchlistStock[]
+
+  @@map("stocks")
+}
+
+model StockPrice {
+  id        String   @id @default(cuid())
+  stockId   String   @map("stock_id")
+  date      DateTime
+  open      Decimal  @db.Decimal(14, 2)
+  high      Decimal  @db.Decimal(14, 2)
+  low       Decimal  @db.Decimal(14, 2)
+  close     Decimal  @db.Decimal(14, 2)
+  volume    BigInt
+  stock     Stock    @relation(fields: [stockId], references: [id], onDelete: Cascade)
+
+  @@unique([stockId, date])
+  @@map("stock_prices")
+}
+
+model Recommendation {
+  id               String   @id @default(cuid())
+  userId           String   @map("user_id")
+  stockId          String   @map("stock_id")
+  signal           Signal
+  suitabilityScore Int      @map("suitability_score")
+  confidence       Decimal  @db.Decimal(4, 2)
+  suggestedAmount  Decimal  @map("suggested_amount") @db.Decimal(14, 2)
+  explanation      String
+  createdAt        DateTime @default(now()) @map("created_at")
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stock            Stock    @relation(fields: [stockId], references: [id], onDelete: Cascade)
+
+  @@index([userId, signal, suitabilityScore])
+  @@map("recommendations")
+}
+
+model Holding {
+  id              String    @id @default(cuid())
+  portfolioId     String    @map("portfolio_id")
+  stockId         String    @map("stock_id")
+  quantity        Int
+  averageBuyPrice Decimal   @map("average_buy_price") @db.Decimal(14, 2)
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  portfolio       Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  stock           Stock     @relation(fields: [stockId], references: [id], onDelete: Cascade)
+
+  @@unique([portfolioId, stockId])
+  @@map("holdings")
+}
+
+model Transaction {
+  id           String          @id @default(cuid())
+  portfolioId  String          @map("portfolio_id")
+  stockId      String          @map("stock_id")
+  type         TransactionType
+  quantity     Int
+  price        Decimal         @db.Decimal(14, 2)
+  tradeValue   Decimal         @map("trade_value") @db.Decimal(14, 2)
+  realizedPnl  Decimal?        @map("realized_pnl") @db.Decimal(14, 2)
+  createdAt    DateTime        @default(now()) @map("created_at")
+  portfolio    Portfolio       @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  stock        Stock           @relation(fields: [stockId], references: [id], onDelete: Cascade)
+
+  @@map("transactions")
+}
+
+model Watchlist {
+  id        String           @id @default(cuid())
+  userId    String           @map("user_id")
+  name      String
+  createdAt DateTime         @default(now()) @map("created_at")
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stocks    WatchlistStock[]
+
+  @@map("watchlists")
+}
+
+model WatchlistStock {
+  watchlistId String @map("watchlist_id")
+  stockId     String @map("stock_id")
+  watchlist   Watchlist @relation(fields: [watchlistId], references: [id], onDelete: Cascade)
+  stock       Stock     @relation(fields: [stockId], references: [id], onDelete: Cascade)
+
+  @@id([watchlistId, stockId])
+  @@map("watchlist_stocks")
+}
+
+model PredictionLog {
+  id           String    @id @default(cuid())
+  userId       String    @map("user_id")
+  portfolioId  String    @map("portfolio_id")
+  predictedPnl Decimal   @map("predicted_pnl") @db.Decimal(14, 2)
+  score        Int
+  createdAt    DateTime  @default(now()) @map("created_at")
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  portfolio    Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+
+  @@map("prediction_logs")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum InvestmentGoal {
+  SHORT_TERM
+  MEDIUM_TERM
+  LONG_TERM
+}
+
+enum RiskAppetite {
+  CONSERVATIVE
+  MODERATE
+  AGGRESSIVE
+}
+
+enum Signal {
+  BUY
+  HOLD
+  SELL
+}
+
+enum TransactionType {
+  BUY
+  SELL
+}
