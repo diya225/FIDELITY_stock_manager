@@ -3,6 +3,8 @@ export type User = {
   email: string;
   fullName: string;
   role: "USER" | "ADMIN";
+  isActive?: boolean;
+  createdAt?: string;
 };
 
 export type Stock = {
@@ -10,8 +12,10 @@ export type Stock = {
   ticker: string;
   name: string;
   sector: string;
+  exchange?: string;
   currentPrice: string;
   changePct: string;
+  isActive?: boolean;
 };
 
 export type Recommendation = {
@@ -21,7 +25,19 @@ export type Recommendation = {
   confidence: string;
   suggestedAmount: string;
   explanation: string;
+  riskLevel?: "LOW" | "MEDIUM" | "HIGH";
+  volatility?: number;
   stock: Stock;
+};
+
+export type Profile = {
+  id: string;
+  monthlyIncome: string;
+  monthlyExpenses: string;
+  currentSavings: string;
+  investmentGoal: "SHORT_TERM" | "MEDIUM_TERM" | "LONG_TERM";
+  riskAppetite: "CONSERVATIVE" | "MODERATE" | "AGGRESSIVE";
+  investableAmount: string;
 };
 
 export type Holding = {

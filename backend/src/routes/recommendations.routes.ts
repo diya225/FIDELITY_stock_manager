@@ -4,7 +4,7 @@ import { z } from "zod";
 import { prisma } from "@/config/prisma.js";
 import { asyncHandler } from "@/middleware/asyncHandler.js";
 import { requireAuth } from "@/middleware/auth.js";
-import { requestRecommendations } from "@/services/mlClient.js";
+import { latestClose, signalFromHistory } from "@/services/marketData.service.js";
 import { ok } from "@/utils/envelope.js";
 import { AppError } from "@/utils/appError.js";
 
@@ -28,10 +28,21 @@ const listRecommendations = async (userId: string, filters: { signal?: Signal; s
           : {})
       }
     },
-    include: { stock: true },
+    include: { stock: { include: { prices: { orderBy: { date: "asc" }, take: 730 } } } },
     orderBy: [{ suitabilityScore: "desc" }, { createdAt: "desc" }],
     take: 50
-  });
+  }).then((items) =>
+    items.map(({ stock, ...item }) => {
+      const metrics = signalFromHistory(stock.prices, "MODERATE", "MEDIUM_TERM", stock.sector);
+      const { prices: _prices, ...stockData } = stock;
+      return {
+        ...item,
+        riskLevel: metrics.riskLevel,
+        volatility: metrics.volatility,
+        stock: { ...stockData, currentPrice: latestClose(stock.prices) || Number(stock.currentPrice) }
+      };
+    })
+  );
 
 recommendationsRouter.get(
   "/",
@@ -40,10 +51,15 @@ recommendationsRouter.get(
       .object({
         signal: z.nativeEnum(Signal).optional(),
         sector: z.string().optional(),
+        riskLevel: z.enum(["LOW", "MEDIUM", "HIGH"]).optional(),
         q: z.string().optional()
       })
       .parse(req.query);
-    ok(res, await listRecommendations(req.user!.id, filters));
+    const recommendations = await listRecommendations(req.user!.id, filters);
+    ok(
+      res,
+      filters.riskLevel ? recommendations.filter((item) => item.riskLevel === filters.riskLevel) : recommendations
+    );
   })
 );
 
@@ -55,19 +71,27 @@ recommendationsRouter.post(
       throw new AppError("Complete your financial profile first.", 400);
     }
 
-    const stocks = await prisma.stock.findMany({ where: { isActive: true } });
-    const generated = await requestRecommendations({
-      risk_appetite: profile.riskAppetite,
-      investment_goal: profile.investmentGoal,
-      investable_amount: Number(profile.investableAmount),
-      stocks: stocks.map((stock) => ({
-        ticker: stock.ticker,
-        name: stock.name,
-        sector: stock.sector,
-        current_price: Number(stock.currentPrice),
-        change_pct: Number(stock.changePct)
-      }))
+    const stocks = await prisma.stock.findMany({
+      where: { isActive: true },
+      include: { prices: { orderBy: { date: "asc" }, take: 730 } }
     });
+    const generated = stocks
+      .filter((stock) => stock.prices.length >= 500)
+      .map((stock) => {
+        const metrics = signalFromHistory(stock.prices, profile.riskAppetite, profile.investmentGoal, stock.sector);
+        const allocation = metrics.signal === "BUY" ? 0.08 : metrics.signal === "HOLD" ? 0.03 : 0;
+        return {
+          ticker: stock.ticker,
+          signal: metrics.signal,
+          suitability_score: metrics.suitabilityScore,
+          confidence: metrics.confidence,
+          suggested_amount: Math.round(Number(profile.investableAmount) * allocation),
+          explanation:
+            `${stock.name} is classified as ${metrics.riskLevel.toLowerCase()} risk based on ${metrics.volatility}% annualized volatility. ` +
+            `Historical indicators show ${metrics.momentum}% 45-day momentum and RSI ${metrics.rsi}, producing a ${metrics.signal} signal for your ${profile.riskAppetite.toLowerCase()} profile.`
+        };
+      })
+      .sort((a, b) => b.suitability_score - a.suitability_score);
 
     await prisma.recommendation.deleteMany({ where: { userId: req.user!.id } });
     for (const item of generated) {

@@ -1,4 +1,23 @@
-# Stock Manager Website - Feature Overview
+# AI-Powered Stock Portfolio Manager - Feature Overview
+
+## Hackathon Requirement Alignment
+
+This project is built for the Fidelity Hackathon 2026 brief: an AI-assisted full-stack stock portfolio manager for first-time Indian retail investors. It uses seeded historical OHLCV stock data instead of live market APIs, generates algorithmic BUY / HOLD / SELL signals, lets users trade virtually, and visualizes portfolio performance through a responsive dashboard.
+
+Core requirements implemented:
+
+- User registration and JWT-based secure login.
+- Financial profile wizard for monthly income, monthly expenses, total savings, investment goal, and risk appetite.
+- Investable amount calculation based on surplus income, time horizon, and risk appetite.
+- Historical OHLCV dataset seeded locally with at least 20 Indian/NSE-style stocks and about 2 years of daily prices.
+- Recommendation generation from historical indicators, including trend, momentum, RSI, volatility, profile suitability, and sector fit.
+- BUY-focused recommendations with suitability score, confidence, suggested amount, risk level, sector, and guidance.
+- Recommendation filters for signal, sector, and Low / Medium / High risk classification.
+- Virtual BUY and SELL trades using latest seeded historical price data, not live APIs.
+- Portfolio P&L using `(latest historical price - average buy price) x quantity`.
+- Dashboard charts for portfolio value over time, sector allocation, top gainers and losers, and summary cards.
+- Responsive professional UI with light and dark mode.
+- Optional affordability simulator for “what if my income changes?” planning.
 
 ## What This Website Is
 
@@ -186,13 +205,17 @@ This helps users quickly identify:
 - Which stocks are losing value
 - Which holdings may need attention
 
-## 14. AI-Assisted Recommendation Engine
+## 14. AI-Assisted Historical Recommendation Engine
 
-The project includes a recommendation service that scores stocks and suggests whether they are suitable for the user.
+The project includes a recommendation engine that scores stocks using locally seeded historical OHLCV data. It does not require a live market API.
 
 The recommendation engine considers:
 
-- Stock movement
+- Latest historical close price
+- Short-term trend
+- 45-day momentum
+- RSI-style relative strength
+- Volatility-based Low / Medium / High risk classification
 - Sector
 - User risk profile
 - Investable amount
@@ -200,7 +223,19 @@ The recommendation engine considers:
 
 The explanations are written in simple language so users can understand the reason behind each recommendation.
 
-## 15. Demo Data for Easy Testing
+## 15. Historical Dataset And Price Replay
+
+The seeded dataset includes NSE-style Indian stocks and daily OHLCV price history. The app uses this data for:
+
+- Generating algorithmic BUY / HOLD / SELL recommendations
+- Setting the latest current price
+- Executing virtual BUY and SELL trades
+- Calculating holding-level P&L
+- Drawing portfolio value history
+
+No external or live market API is required for these flows.
+
+## 16. Demo Data for Easy Testing
 
 The project includes sample Indian stock data and demo users.
 
@@ -212,7 +247,7 @@ Example demo users include:
 - Priya Patel
 - Platform Admin
 
-## 16. Admin Features
+## 17. Admin Features
 
 Admins can manage important platform information.
 
@@ -224,7 +259,7 @@ Admin functionality includes:
 
 This helps platform operators maintain the website data.
 
-## 17. Safe Learning Environment
+## 18. Safe Learning Environment
 
 The website is virtual, so users can learn investing without using real money.
 
@@ -236,7 +271,7 @@ This is useful because beginners can:
 - See how diversification works
 - Make mistakes safely
 
-## 18. Indian Stock Market Focus
+## 19. Indian Stock Market Focus
 
 The project is focused on Indian retail investors.
 
@@ -250,7 +285,7 @@ The stock list includes NSE-style tickers such as:
 
 This makes the app more relevant for Indian users.
 
-## 19. Mobile-Friendly Website
+## 20. Mobile-Friendly Website
 
 The website is designed to work on different screen sizes, including:
 
@@ -261,7 +296,7 @@ The website is designed to work on different screen sizes, including:
 
 Users should be able to check recommendations and portfolio details even from a smaller device.
 
-## 20. What Users Get From This Website
+## 21. What Users Get From This Website
 
 By using this website, a user can:
 

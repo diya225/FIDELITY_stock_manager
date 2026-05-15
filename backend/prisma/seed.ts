@@ -56,7 +56,12 @@ const stocks = [
   ["UPL.NS", "UPL Ltd.", "Chemicals"]
 ] as const;
 
-const seededPrice = (index: number) => Math.round((650 + index * 71 + (index % 7) * 130) * 100) / 100;
+const seededPrice = (index: number, offset = 729) => {
+  const base = 650 + index * 71 + (index % 7) * 130;
+  const trend = 0.78 + offset / 2600;
+  const cycle = Math.sin((index + offset) / 18) * 0.055 + Math.cos(offset / 31) * 0.025;
+  return Math.round(base * (trend + cycle) * 100) / 100;
+};
 
 const main = async () => {
   for (const [index, stock] of stocks.entries()) {
@@ -68,14 +73,20 @@ const main = async () => {
       create: { ticker, name, sector, exchange: "NSE", currentPrice, changePct: ((index % 9) - 4) * 0.7 }
     });
 
-    for (let offset = 0; offset < 90; offset += 1) {
+    for (let offset = 0; offset < 730; offset += 1) {
       const date = new Date();
-      date.setDate(date.getDate() - (90 - offset));
+      date.setDate(date.getDate() - (729 - offset));
       date.setHours(0, 0, 0, 0);
-      const close = currentPrice * (0.88 + offset / 750 + ((index + offset) % 5) / 200);
+      const close = seededPrice(index, offset);
       await prisma.stockPrice.upsert({
         where: { stockId_date: { stockId: created.id, date } },
-        update: {},
+        update: {
+          open: close * 0.99,
+          high: close * 1.02,
+          low: close * 0.98,
+          close,
+          volume: BigInt(100000 + index * 1000 + offset * 50)
+        },
         create: {
           stockId: created.id,
           date,

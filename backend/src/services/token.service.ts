@@ -1,16 +1,18 @@
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import type { SignOptions } from "jsonwebtoken";
 import { Role, User } from "@prisma/client";
 import { prisma } from "@/config/prisma.js";
 import { env } from "@/config/env.js";
 
 const refreshDays = 7;
+const accessTokenOptions: SignOptions = {
+  expiresIn: env.JWT_ACCESS_EXPIRES_IN as SignOptions["expiresIn"]
+};
 
 export const signAccessToken = (user: Pick<User, "id" | "email" | "role">) =>
-  jwt.sign({ id: user.id, email: user.email, role: user.role }, env.JWT_ACCESS_SECRET, {
-    expiresIn: env.JWT_ACCESS_EXPIRES_IN
-  });
+  jwt.sign({ id: user.id, email: user.email, role: user.role }, env.JWT_ACCESS_SECRET, accessTokenOptions);
 
 export const createRefreshToken = async (userId: string) => {
   const token = crypto.randomBytes(48).toString("hex");

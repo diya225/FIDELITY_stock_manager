@@ -5,6 +5,7 @@ import { asyncHandler } from "@/middleware/asyncHandler.js";
 import { requireAuth } from "@/middleware/auth.js";
 import { ok } from "@/utils/envelope.js";
 import { AppError } from "@/utils/appError.js";
+import { latestClose } from "@/services/marketData.service.js";
 
 export const portfolioRouter = Router();
 portfolioRouter.use(requireAuth);
@@ -13,14 +14,32 @@ const getPortfolio = async (userId: string) => {
   const portfolio = await prisma.portfolio.findUnique({
     where: { userId },
     include: {
-      holdings: { include: { stock: true }, orderBy: { updatedAt: "desc" } },
+      holdings: {
+        include: { stock: { include: { prices: { orderBy: { date: "asc" }, take: 730 } } } },
+        orderBy: { updatedAt: "desc" }
+      },
       transactions: { include: { stock: true }, orderBy: { createdAt: "desc" }, take: 30 }
     }
   });
   if (!portfolio) {
     throw new AppError("Portfolio not found. Complete your profile first.", 404);
   }
-  return portfolio;
+  return {
+    ...portfolio,
+    holdings: portfolio.holdings.map(({ stock, ...holding }) => {
+      const { prices: _prices, ...stockData } = stock;
+      return { ...holding, stock: { ...stockData, currentPrice: latestClose(stock.prices) || Number(stock.currentPrice) } };
+    })
+  };
+};
+
+const getTradeStock = async (ticker: string) => {
+  const stock = await prisma.stock.findUnique({
+    where: { ticker },
+    include: { prices: { orderBy: { date: "asc" }, take: 730 } }
+  });
+  if (!stock || stock.prices.length === 0) return null;
+  return { ...stock, replayPrice: latestClose(stock.prices) };
 };
 
 portfolioRouter.get(
@@ -35,12 +54,12 @@ portfolioRouter.post(
   asyncHandler(async (req, res) => {
     const body = z.object({ ticker: z.string(), quantity: z.number().int().positive() }).parse(req.body);
     const portfolio = await getPortfolio(req.user!.id);
-    const stock = await prisma.stock.findUnique({ where: { ticker: body.ticker } });
-    if (!stock || Number(stock.currentPrice) <= 0) {
-      throw new AppError("Price data unavailable", 400);
+    const stock = await getTradeStock(body.ticker);
+    if (!stock || stock.replayPrice <= 0) {
+      throw new AppError("Historical price data unavailable", 400);
     }
 
-    const price = Number(stock.currentPrice);
+    const price = stock.replayPrice;
     const tradeValue = price * body.quantity;
     if (tradeValue > Number(portfolio.virtualBalance)) {
       throw new AppError("Insufficient funds", 400, { remainingBalance: Number(portfolio.virtualBalance) });
@@ -67,7 +86,7 @@ portfolioRouter.post(
       }
 
       await tx.transaction.create({
-        data: { portfolioId: portfolio.id, stockId: stock.id, type: "BUY", quantity: body.quantity, price, tradeValue }
+          data: { portfolioId: portfolio.id, stockId: stock.id, type: "BUY", quantity: body.quantity, price, tradeValue }
       });
       await tx.portfolio.update({
         where: { id: portfolio.id },

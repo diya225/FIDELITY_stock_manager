@@ -19,6 +19,29 @@ adminRouter.get(
 );
 
 adminRouter.put(
+  "/users/:id",
+  asyncHandler(async (req, res) => {
+    const body = z.object({ isActive: z.boolean() }).parse(req.body);
+    const user = await prisma.user.update({
+      where: { id: req.params.id },
+      data: body,
+      select: { id: true, email: true, fullName: true, role: true, isActive: true, createdAt: true }
+    });
+    ok(res, user);
+  })
+);
+
+adminRouter.get(
+  "/stocks",
+  asyncHandler(async (_req, res) => {
+    const stocks = await prisma.stock.findMany({
+      orderBy: [{ isActive: "desc" }, { ticker: "asc" }]
+    });
+    ok(res, stocks);
+  })
+);
+
+adminRouter.put(
   "/stocks/:ticker",
   asyncHandler(async (req, res) => {
     const body = z
